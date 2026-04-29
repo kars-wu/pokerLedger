@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="40" fill="#121212"/>
+  <!-- 扑克牌花色装饰 -->
+  <text x="96" y="80" text-anchor="middle" font-size="60" fill="#10b981">♠</text>
+  <text x="96" y="140" text-anchor="middle" font-family="-apple-system,sans-serif" font-size="22" font-weight="700" fill="#e5e7eb">Poker</text>
+  <text x="96" y="164" text-anchor="middle" font-family="-apple-system,sans-serif" font-size="16" fill="#10b981">Ledger</text>
+</svg>

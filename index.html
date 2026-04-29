@@ -1,0 +1,2501 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <meta name="theme-color" content="#121212" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Poker Ledger · 扑克记账</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <style>
+    /* ===== CSS 变量 & 重置 ===== */
+    :root {
+      --bg: #121212;
+      --bg2: #1a1a1a;
+      --card: #1e1e1e;
+      --border: #333;
+      --brand: #10b981;
+      --brand-dim: #059669;
+      --red: #ef4444;
+      --text: #e5e7eb;
+      --text2: #9ca3af;
+      --radius-card: 12px;
+      --radius-btn: 8px;
+      --radius-tag: 20px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, "PingFang SC", "HarmonyOS Sans", sans-serif; -webkit-tap-highlight-color: transparent; }
+    button { cursor: pointer; border: none; background: none; color: inherit; font: inherit; }
+    input, textarea, select { font: inherit; color: inherit; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-btn); padding: 10px 12px; width: 100%; outline: none; }
+    input:focus, textarea:focus, select:focus { border-color: var(--brand); }
+    input[type="datetime-local"]::-webkit-calendar-picker-indicator { filter: invert(1) brightness(0.6); }
+    a { color: var(--brand); text-decoration: none; }
+
+    /* ===== 布局 ===== */
+    #app { display: flex; flex-direction: column; height: 100%; }
+    .page { display: none; flex: 1; overflow-y: auto; padding-bottom: 70px; width: 100%; min-width: 0; }
+    .page.active { display: block; }
+
+    /* ===== 顶部导航 ===== */
+    .topbar {
+      position: sticky; top: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 16px; height: 52px; background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .topbar h1 { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
+    .topbar h1 span { color: var(--brand); }
+
+    /* ===== 底部导航 ===== */
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+      display: flex; background: var(--bg2);
+      border-top: 1px solid var(--border);
+      height: 56px;
+    }
+    .bottom-nav button {
+      flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 3px; font-size: 11px; color: var(--text2); transition: color 0.2s;
+    }
+    .bottom-nav button.active { color: var(--brand); }
+    .bottom-nav button svg { width: 22px; height: 22px; }
+
+    /* ===== 按钮样式 ===== */
+    .btn-primary {
+      background: var(--brand); color: #fff; font-weight: 600;
+      border-radius: var(--radius-btn); padding: 12px 20px;
+      transition: transform 0.1s, background 0.1s; min-height: 44px;
+    }
+    .btn-primary:active { transform: scale(0.97); background: var(--brand-dim); }
+    .btn-outline {
+      border: 1px solid var(--brand); color: var(--brand); font-weight: 600;
+      border-radius: var(--radius-btn); padding: 10px 20px;
+      transition: transform 0.1s; min-height: 44px;
+    }
+    .btn-outline:active { transform: scale(0.97); }
+    .btn-danger { color: var(--red); font-weight: 600; }
+    .btn-sm { padding: 6px 14px; font-size: 13px; min-height: 36px; border-radius: var(--radius-btn); }
+
+    /* ===== 卡片 ===== */
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius-card); padding: 16px;
+    }
+
+    /* ===== 首页 ===== */
+    #page-home { padding: 0 0 70px; }
+    .stats-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 12px; padding: 16px;
+    }
+    .stat-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius-card); padding: 16px;
+      animation: fadeIn 0.3s ease;
+    }
+    .stat-card .label { font-size: 12px; color: var(--text2); margin-bottom: 6px; }
+    .stat-card .value { font-size: 24px; font-weight: 700; font-feature-settings: "tnum"; }
+    .stat-card .value.profit { color: var(--brand); }
+    .stat-card .value.loss { color: var(--red); }
+    .stat-card .value.neutral { color: var(--text); }
+    .stat-card .sub { font-size: 12px; color: var(--text2); margin-top: 4px; }
+
+    /* 盈亏曲线 */
+    .chart-section { padding: 0 16px 16px; }
+    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .section-title { font-size: 15px; font-weight: 600; }
+    .chart-wrap { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 12px; height: 180px; }
+
+    /* 最近记录 */
+    .recent-section { padding: 0 16px; }
+    .record-list { display: flex; flex-direction: column; gap: 8px; }
+    .record-item {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius-card); padding: 12px 14px;
+      display: flex; justify-content: space-between; align-items: center;
+      animation: fadeIn 0.25s ease; cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .record-item:active { border-color: var(--brand); }
+    .record-left { flex: 1; }
+    .record-top { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+    .record-date { font-size: 12px; color: var(--text2); }
+    .record-blinds { font-size: 12px; background: #2a2a2a; border-radius: 4px; padding: 1px 6px; color: var(--text2); }
+    .record-player { font-size: 12px; background: #1a2e24; border-radius: 4px; padding: 1px 6px; color: var(--brand); font-weight: 600; }
+    .record-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+    .tag-chip {
+      font-size: 11px; padding: 2px 8px;
+      background: #243d32; color: var(--brand);
+      border-radius: var(--radius-tag);
+    }
+    .record-right { text-align: right; flex-shrink: 0; margin-left: 12px; }
+    .record-amount { font-size: 18px; font-weight: 700; font-feature-settings: "tnum"; }
+    .record-duration { font-size: 12px; color: var(--text2); margin-top: 2px; }
+    .amount-profit { color: var(--brand); }
+    .amount-loss { color: var(--red); }
+    .amount-zero { color: var(--text2); }
+
+    .empty-hint { text-align: center; padding: 40px 20px; color: var(--text2); font-size: 14px; }
+
+    /* ===== 底部抽屉 ===== */
+    .sheet-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+      z-index: 200; opacity: 0; pointer-events: none; transition: opacity 0.25s;
+    }
+    .sheet-backdrop.open { opacity: 1; pointer-events: all; }
+    .sheet {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 201;
+      background: var(--bg2); border-radius: 20px 20px 0 0;
+      padding: 0 16px 32px;
+      max-height: 88vh; overflow-y: auto;
+      transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    .sheet.open { transform: translateY(0); }
+    .sheet-handle {
+      width: 40px; height: 4px; background: var(--border);
+      border-radius: 2px; margin: 12px auto 16px;
+    }
+    .sheet-title { font-size: 17px; font-weight: 700; margin-bottom: 20px; }
+    .form-group { margin-bottom: 16px; }
+    .form-label { font-size: 13px; color: var(--text2); margin-bottom: 6px; display: block; }
+    .form-row { display: flex; gap: 8px; }
+    .form-row > * { flex: 1; }
+    .amount-row { position: relative; }
+    .amount-prefix { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text2); pointer-events: none; }
+    .amount-row input { padding-left: 26px; }
+    .neg-btn {
+      position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+      background: #2a2a2a; border-radius: 6px; padding: 4px 10px;
+      font-size: 16px; font-weight: 700; color: var(--text2);
+      min-height: 32px;
+    }
+
+    /* 标签选择器 */
+    .tags-selector { display: flex; flex-wrap: wrap; gap: 6px; }
+    .tag-option {
+      padding: 5px 12px; border-radius: var(--radius-tag);
+      border: 1px solid var(--border); font-size: 13px;
+      cursor: pointer; transition: all 0.15s; min-height: 32px;
+      display: flex; align-items: center;
+    }
+    .tag-option.selected { background: #243d32; border-color: var(--brand); color: var(--brand); }
+    .tag-option.add-tag { color: var(--text2); border-style: dashed; }
+
+    /* 预设盲注 */
+    .blinds-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+    .blind-chip {
+      padding: 4px 10px; border-radius: 6px;
+      border: 1px solid var(--border); font-size: 12px;
+      cursor: pointer; transition: all 0.15s; min-height: 30px;
+      display: flex; align-items: center;
+    }
+    .blind-chip.selected { border-color: var(--brand); color: var(--brand); background: #1a3028; }
+
+    .sheet-actions { margin-top: 24px; display: flex; flex-direction: column; gap: 10px; }
+
+    /* ===== 查询页 ===== */
+    #page-query { padding: 0 0 70px; }
+    .filter-panel { background: var(--card); border-bottom: 1px solid var(--border); padding: 12px 16px; }
+    .filter-toggle { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+    .filter-toggle span { font-size: 14px; font-weight: 600; }
+    .filter-body { display: none; padding-top: 12px; }
+    .filter-body.open { display: block; }
+    .filter-group { margin-bottom: 12px; }
+    .filter-group label { font-size: 12px; color: var(--text2); display: block; margin-bottom: 5px; }
+    .filter-actions { display: flex; gap: 8px; margin-top: 12px; }
+    .filter-actions button { flex: 1; }
+    .query-list { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+    .query-footer { padding: 12px 16px; }
+    .record-note { font-size: 12px; color: var(--text2); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+
+    /* ===== 设置页 ===== */
+    #page-settings { padding: 0 0 70px; }
+    .settings-section { margin-bottom: 24px; }
+    .settings-section-title { font-size: 13px; color: var(--text2); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .settings-item {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius-card); padding: 14px 16px;
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .settings-item-info .title { font-size: 15px; }
+    .settings-item-info .desc { font-size: 12px; color: var(--text2); margin-top: 2px; }
+
+    /* ===== 模态对话框 ===== */
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+      z-index: 300; display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    }
+    .modal-backdrop.open { opacity: 1; pointer-events: all; }
+    .modal {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius-card); padding: 24px;
+      max-width: 320px; width: calc(100% - 40px);
+      transform: scale(0.95); transition: transform 0.2s;
+    }
+    .modal-backdrop.open .modal { transform: scale(1); }
+    .modal h3 { font-size: 17px; font-weight: 700; margin-bottom: 10px; }
+    .modal p { font-size: 14px; color: var(--text2); line-height: 1.6; margin-bottom: 16px; }
+    .modal-actions { display: flex; gap: 10px; }
+    .modal-actions button { flex: 1; }
+
+    /* ===== Toast 提示 ===== */
+    .toast {
+      position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: #333; color: var(--text); padding: 10px 20px;
+      border-radius: 24px; font-size: 14px; z-index: 500;
+      opacity: 0; transition: all 0.25s; pointer-events: none;
+      white-space: nowrap;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ===== 记分板页 ===== */
+    #page-table { padding: 0 0 70px; width: 100%; }
+
+    .table-topbar-actions { display: flex; gap: 8px; align-items: center; }
+
+    /* 局信息条 */
+    .table-meta {
+      background: var(--card); border-bottom: 1px solid var(--border);
+      padding: 10px 16px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    }
+    .table-meta-item { font-size: 12px; color: var(--text2); }
+    .table-meta-item span { color: var(--text); font-weight: 600; }
+    .table-pot {
+      margin-left: auto; font-size: 13px; font-weight: 700; color: var(--brand);
+    }
+
+    /* 玩家卡片列表 */
+    .players-list { padding: 6px 10px; display: flex; flex-direction: column; gap: 4px; }
+
+    .player-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 8px; overflow: hidden;
+    }
+    .player-card.is-winner { border-color: var(--brand); }
+    .player-card.is-loser  { border-color: var(--red); }
+
+    /* ===== 战绩分享页 ===== */
+    .share-overlay {
+      position: fixed; inset: 0; z-index: 400;
+      background: var(--bg); display: flex; flex-direction: column;
+      align-items: center; padding: 0;
+      animation: fadeIn 0.2s ease;
+    }
+    .share-topbar {
+      width: 100%; display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px; background: var(--bg2); border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .share-topbar h2 { font-size: 17px; font-weight: 700; }
+    .share-canvas-wrap {
+      flex: 1; overflow-y: auto; width: 100%;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 16px;
+    }
+    .share-canvas-wrap canvas {
+      max-width: 100%; border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,.5);
+    }
+    .share-hint { font-size: 13px; color: var(--text2); margin-top: 12px; text-align: center; }
+    .share-actions {
+      width: 100%; padding: 12px 16px 28px; display: flex; gap: 10px;
+      background: var(--bg2); border-top: 1px solid var(--border); flex-shrink: 0;
+    }
+    .share-actions button { flex: 1; }
+
+    .player-main {
+      display: flex; align-items: center; padding: 5px 10px; gap: 6px;
+    }
+    .player-info { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 6px; }
+    .player-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; max-width: 60px; }
+    .player-buying-total { font-size: 10px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .player-right { text-align: right; flex-shrink: 0; display: flex; align-items: baseline; gap: 4px; }
+    .player-stack { font-size: 14px; font-weight: 700; font-feature-settings: "tnum"; color: var(--text); }
+    .stack-input {
+      width: 58px; font-size: 14px; font-weight: 700; font-feature-settings: "tnum";
+      color: var(--text); background: transparent; border: none;
+      border-bottom: 1px dashed var(--border); border-radius: 0;
+      padding: 0; text-align: right; outline: none;
+      -moz-appearance: textfield;
+    }
+    .stack-input::-webkit-inner-spin-button,
+    .stack-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    .stack-input:focus { border-bottom-color: var(--brand); color: var(--brand); }
+    .player-pnl { font-size: 10px; font-weight: 600; font-feature-settings: "tnum"; white-space: nowrap; }
+
+    /* 玩家操作行 */
+    .player-actions {
+      display: flex; border-top: 1px solid var(--border); background: #181818;
+    }
+    .player-action-btn {
+      flex: 1; padding: 4px 4px; font-size: 10px; color: var(--text2);
+      display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 3px;
+      border-right: 1px solid var(--border); transition: background 0.15s, color 0.15s;
+      min-height: 28px;
+    }
+    .player-action-btn:last-child { border-right: none; }
+    .player-action-btn:active { background: #2a2a2a; color: var(--text); }
+    .player-action-btn svg { width: 11px; height: 11px; }
+    .player-action-btn.buy-btn { color: var(--brand); }
+    .player-action-btn.del-btn { color: var(--red); }
+
+    /* 买入历史展开 */
+    .buying-history {
+      display: none; padding: 8px 14px 10px;
+      border-top: 1px solid var(--border); background: #181818;
+    }
+    .buying-history.open { display: block; }
+    .buying-history-title { font-size: 11px; color: var(--text2); margin-bottom: 6px; }
+    .buying-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+    .buying-chip {
+      font-size: 12px; padding: 3px 10px; border-radius: 12px;
+      background: #242424; border: 1px solid var(--border); color: var(--text);
+      display: flex; align-items: center; gap: 4px;
+    }
+    .buying-chip .rm { color: var(--red); font-size: 14px; cursor: pointer; line-height: 1; padding: 0 2px; }
+
+    /* 添加玩家按钮 */
+    .add-player-btn {
+      margin: 2px 10px 6px;
+      background: #1a2e24; border: 1px dashed var(--brand);
+      border-radius: var(--radius-card); padding: 8px;
+      color: var(--brand); font-size: 13px; font-weight: 600;
+      width: calc(100% - 20px); display: flex; align-items: center; justify-content: center; gap: 5px;
+      min-height: 36px;
+    }
+    .add-player-btn:active { background: #243d32; }
+
+    /* 结束局悬浮条 */
+    .table-end-bar {
+      position: sticky; bottom: 0; z-index: 90;
+      background: var(--bg2); border-top: 1px solid var(--border);
+      padding: 10px 16px; display: flex; gap: 8px;
+    }
+    .table-end-bar button { flex: 1; }
+
+    /* 无进行中局 */
+    .table-empty {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 60px 30px; gap: 16px; text-align: center;
+    }
+    .table-empty svg { width: 56px; height: 56px; color: #333; }
+    .table-empty p { font-size: 15px; color: var(--text2); line-height: 1.6; }
+
+    /* 筹码快速输入弹窗 */
+    .chip-input-wrap { position: relative; }
+    .chip-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .chip-preset-btn {
+      padding: 5px 12px; border-radius: var(--radius-tag);
+      border: 1px solid var(--border); font-size: 13px; cursor: pointer;
+      transition: all 0.15s; min-height: 32px; color: var(--text2);
+    }
+    .chip-preset-btn:active { border-color: var(--brand); color: var(--brand); background: #243d32; }
+
+    /* 历史局列表（记分板历史）*/
+    .table-history-section { padding: 0 16px 12px; }
+    .table-history-item {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius-card); padding: 12px 14px;
+      margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s;
+    }
+    .table-history-item:active { border-color: var(--brand); }
+    .table-history-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .table-history-date { font-size: 12px; color: var(--text2); }
+    .table-history-blinds { font-size: 12px; background: #2a2a2a; border-radius: 4px; padding: 1px 6px; color: var(--text2); }
+    .table-history-players { display: flex; flex-wrap: wrap; gap: 5px; }
+    .table-history-player {
+      font-size: 12px; padding: 2px 8px; border-radius: 10px;
+      background: #242424; border: 1px solid var(--border);
+    }
+    .table-history-player.win { color: var(--brand); border-color: #243d32; background: #1a2e24; }
+    .table-history-player.lose { color: var(--red); border-color: #3d2020; background: #2a1818; }
+
+    /* ===== 玩家选择器 ===== */
+    .player-switcher {
+      display: flex; gap: 6px; overflow-x: auto; padding: 10px 16px;
+      background: var(--bg2); border-bottom: 1px solid var(--border);
+      scrollbar-width: none;
+    }
+    .player-switcher::-webkit-scrollbar { display: none; }
+    .player-chip {
+      flex-shrink: 0; padding: 5px 14px; border-radius: var(--radius-tag);
+      border: 1px solid var(--border); font-size: 13px; cursor: pointer;
+      transition: all 0.15s; white-space: nowrap; color: var(--text2);
+      background: var(--card);
+    }
+    .player-chip.active { border-color: var(--brand); color: var(--brand); background: #1a2e24; font-weight: 600; }
+
+    /* ===== 历史牌局左滑操作 ===== */
+    .swipe-row {
+      position: relative; overflow: hidden;
+      border-radius: var(--radius-card); margin-bottom: 8px;
+    }
+    .swipe-actions {
+      position: absolute; right: 0; top: 0; bottom: 0;
+      display: flex; align-items: stretch;
+      transform: translateX(100%);
+      transition: transform 0.25s ease;
+      border-radius: 0 var(--radius-card) var(--radius-card) 0;
+      overflow: hidden;
+    }
+    .swipe-row.swiped .swipe-actions { transform: translateX(0); }
+    .swipe-content {
+      transition: transform 0.25s ease;
+      touch-action: pan-y;
+    }
+    .swipe-row.swiped .swipe-content { transform: translateX(-116px); }
+    .swipe-actions {
+      gap: 8px; padding: 0 12px;
+      background: var(--bg);
+      border-left: 1px solid var(--border);
+      width: 116px;
+    }
+    .swipe-btn {
+      width: 44px; height: 44px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; border: none; flex-shrink: 0;
+      align-self: center;
+      transition: opacity 0.15s;
+    }
+    .swipe-btn:active { opacity: 0.75; }
+    .swipe-btn-continue { background: #383838; color: var(--text); }
+    .swipe-btn-delete   { background: var(--red); color: #fff; }
+
+    /* ===== 动画 ===== */
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ===== 首页 ===== -->
+  <div id="page-home" class="page active">
+    <div class="topbar">
+      <h1>Poker <span>Ledger</span></h1>
+      <button class="btn-primary btn-sm" onclick="openSheet()">+ 添加记录</button>
+    </div>
+
+    <!-- 玩家选择器 -->
+    <div class="player-switcher" id="player-switcher"></div>
+
+    <!-- 统计卡片 -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="label">总盈亏</div>
+        <div class="value" id="stat-total-amount">¥0</div>
+        <div class="sub" id="stat-winrate"></div>
+      </div>
+      <div class="stat-card">
+        <div class="label">总局数</div>
+        <div class="value neutral" id="stat-count">0</div>
+        <div class="sub">场游戏</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">总时长</div>
+        <div class="value neutral" id="stat-duration">0h</div>
+        <div class="sub">游戏时间</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">时薪</div>
+        <div class="value" id="stat-hourly">¥0</div>
+        <div class="sub">元/小时</div>
+      </div>
+    </div>
+
+    <!-- 盈亏曲线 -->
+    <div class="chart-section">
+      <div class="section-header">
+        <div class="section-title">盈亏走势</div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="profit-chart"></canvas>
+      </div>
+    </div>
+
+    <!-- 最近记录 -->
+    <div class="recent-section">
+      <div class="section-header">
+        <div class="section-title">最近记录</div>
+      </div>
+      <div class="record-list" id="recent-list">
+        <div class="empty-hint">暂无记录，点击右上角添加第一条牌局</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 查询页 ===== -->
+  <div id="page-query" class="page">
+    <div class="topbar">
+      <h1>全部<span>记录</span></h1>
+    </div>
+    <div class="filter-panel">
+      <div class="filter-toggle" onclick="toggleFilter()">
+        <span>筛选条件</span>
+        <svg id="filter-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" style="transition:transform 0.2s"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="filter-body" id="filter-body">
+        <div class="filter-group">
+          <label>日期范围</label>
+          <div class="form-row">
+            <input type="date" id="f-date-start" placeholder="开始日期" />
+            <input type="date" id="f-date-end" placeholder="结束日期" />
+          </div>
+        </div>
+        <div class="filter-group">
+          <label>盈亏范围（元）</label>
+          <div class="form-row">
+            <input type="number" id="f-amount-min" placeholder="最小" />
+            <input type="number" id="f-amount-max" placeholder="最大" />
+          </div>
+        </div>
+        <div class="filter-group">
+          <label>盲注级别</label>
+          <input type="text" id="f-blinds" placeholder="如 10/20，模糊搜索" />
+        </div>
+        <div class="filter-group">
+          <label>玩家名</label>
+          <input type="text" id="f-player" placeholder="输入玩家名搜索" />
+        </div>
+        <div class="filter-group">
+          <label>标签（多选）</label>
+          <div class="tags-selector" id="f-tags"></div>
+        </div>
+        <div class="filter-actions">
+          <button class="btn-outline btn-sm" onclick="resetFilter()">重置</button>
+          <button class="btn-primary btn-sm" onclick="applyFilter()">应用筛选</button>
+        </div>
+      </div>
+    </div>
+    <div class="query-list" id="query-list"></div>
+    <div class="query-footer">
+      <button class="btn-outline" style="width:100%" onclick="exportCSV()">导出 CSV</button>
+    </div>
+  </div>
+
+  <!-- ===== 设置页 ===== -->
+  <div id="page-settings" class="page">
+    <div class="topbar">
+      <h1>设<span>置</span></h1>
+    </div>
+    <div style="padding: 16px 16px 0">
+    <div class="settings-section">
+      <div class="settings-section-title">记录查询</div>
+      <div class="settings-item">
+        <div class="settings-item-info">
+          <div class="title">全部记录</div>
+          <div class="desc">按玩家、日期、标签等筛选所有战绩</div>
+        </div>
+        <button class="btn-outline btn-sm" onclick="showPage('query')">查看</button>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">数据备份</div>
+      <div class="settings-item">
+        <div class="settings-item-info">
+          <div class="title">导出备份文件</div>
+          <div class="desc">将所有数据导出为 JSON 文件</div>
+        </div>
+        <button class="btn-outline btn-sm" onclick="exportBackup()">导出</button>
+      </div>
+      <div class="settings-item">
+        <div class="settings-item-info">
+          <div class="title">导入备份文件</div>
+          <div class="desc">从 JSON 文件恢复或合并数据</div>
+        </div>
+        <button class="btn-outline btn-sm" onclick="importBackup()">导入</button>
+        <input type="file" id="import-file" accept=".json" style="display:none" onchange="handleImportFile(event)" />
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">危险区域</div>
+      <div class="settings-item">
+        <div class="settings-item-info">
+          <div class="title" style="color:var(--red)">清除所有数据</div>
+          <div class="desc">不可恢复，请提前备份</div>
+        </div>
+        <button class="btn-sm" style="color:var(--red);border:1px solid var(--red);border-radius:var(--radius-btn);padding:6px 14px" onclick="confirmClear()">清除</button>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">关于</div>
+      <div class="card" style="font-size:13px;color:var(--text2);line-height:1.8">
+        <p>Poker Ledger v1.0</p>
+        <p>所有数据仅保存在本设备浏览器中，不会上传任何服务器。</p>
+        <p style="margin-top:8px;color:#666">建议定期导出备份文件，避免数据丢失。</p>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <!-- ===== 记分板页 ===== -->
+  <div id="page-table" class="page">
+    <div class="topbar">
+      <h1>牌局<span>记分</span></h1>
+      <div class="table-topbar-actions" id="table-topbar-actions">
+        <!-- 由 JS 动态注入 -->
+      </div>
+    </div>
+    <div id="table-page-body">
+      <!-- 由 JS 动态渲染 -->
+    </div>
+  </div>
+
+  <!-- ===== 底部导航 ===== -->
+  <nav class="bottom-nav">
+    <button onclick="showPage('home')" id="nav-home" class="active">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      首页
+    </button>
+    <button onclick="showPage('table')" id="nav-table">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      记分
+    </button>
+    <button onclick="showPage('settings')" id="nav-settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      设置
+    </button>
+  </nav>
+
+
+</div>
+
+<!-- ===== 底部抽屉（添加/编辑记录）===== -->
+<div class="sheet-backdrop" id="sheet-backdrop" onclick="closeSheet()"></div>
+<div class="sheet" id="record-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title" id="sheet-title">添加记录</div>
+
+  <div class="form-group">
+    <label class="form-label">盈亏金额（元）<span style="color:var(--red)">*</span></label>
+    <div class="amount-row" style="position:relative">
+      <span class="amount-prefix">¥</span>
+      <input type="number" id="f-amount" placeholder="0.00" step="0.01" inputmode="decimal" />
+      <button class="neg-btn" onclick="toggleNeg()" title="切换正负">±</button>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">游戏时长（小时）<span style="color:var(--red)">*</span></label>
+    <input type="number" id="f-duration" placeholder="0.5" step="0.5" min="0.1" inputmode="decimal" />
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">盲注级别</label>
+    <div class="blinds-presets" id="blinds-presets"></div>
+    <input type="text" id="f-blinds-input" placeholder="自定义，如 25/50" />
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">标签</label>
+    <div class="tags-selector" id="form-tags"></div>
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">日期时间<span style="color:var(--red)">*</span></label>
+    <input type="datetime-local" id="f-datetime" />
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">玩家名 <span style="color:var(--red)">*</span></label>
+    <input type="text" id="f-player-name" placeholder="如：小明" maxlength="10" />
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">备注（选填，最多200字）</label>
+    <textarea id="f-note" rows="3" maxlength="200" placeholder="牌感、情绪、心得…" style="resize:none"></textarea>
+  </div>
+
+  <div class="sheet-actions">
+    <button class="btn-primary" onclick="saveRecord()">保存记录</button>
+    <button class="btn-danger" id="delete-btn" style="display:none" onclick="deleteRecord()">删除这条记录</button>
+  </div>
+</div>
+
+<!-- ===== 新建牌局弹窗 ===== -->
+<div class="sheet-backdrop" id="new-session-backdrop" onclick="closeNewSessionSheet()"></div>
+<div class="sheet" id="new-session-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">新建牌局</div>
+  <div class="form-group">
+    <label class="form-label">盲注（选填）</label>
+    <div class="form-row" style="align-items:center">
+      <div style="position:relative">
+        <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px">小盲</label>
+        <input type="number" id="ns-sb" placeholder="25" min="1" step="any" inputmode="decimal"
+          onblur="nsAutoFillBB()" />
+      </div>
+      <div style="position:relative">
+        <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px">大盲</label>
+        <input type="number" id="ns-bb" placeholder="50" min="1" step="any" inputmode="decimal" />
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--text2);margin-top:5px">大盲默认 = 小盲 × 2；留空则不设盲注</div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">金额/分数比例 <span style="color:var(--red)">*</span></label>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:13px;color:var(--text2);white-space:nowrap">1 元 =</span>
+      <input type="number" id="ns-rate" placeholder="20" min="1" step="any" inputmode="decimal" style="flex:1" />
+      <span style="font-size:13px;color:var(--text2);white-space:nowrap">分</span>
+    </div>
+    <div class="chip-presets" id="ns-rate-presets"></div>
+    <div style="font-size:12px;color:var(--text2);margin-top:6px">局内以分数记录，结束时÷比例换算为元</div>
+  </div>
+  <div class="sheet-actions">
+    <button class="btn-primary" onclick="confirmNewSession()">开始记分</button>
+  </div>
+</div>
+
+<!-- ===== 添加玩家弹窗 ===== -->
+<div class="sheet-backdrop" id="player-sheet-backdrop" onclick="closePlayerSheet()"></div>
+<div class="sheet" id="player-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title" id="player-sheet-title">添加玩家</div>
+
+  <div class="form-group">
+    <label class="form-label">玩家姓名 <span style="color:var(--red)">*</span></label>
+    <input type="text" id="ps-name" placeholder="如：小明" maxlength="10" />
+  </div>
+  <div class="form-group">
+    <label class="form-label">首次买入（手）<span style="color:var(--red)">*</span></label>
+    <input type="number" id="ps-buyin" placeholder="如：2" min="1" step="1" inputmode="numeric" />
+    <div class="chip-presets" id="ps-buyin-presets"></div>
+    <div style="font-size:12px;color:var(--text2);margin-top:5px" id="ps-buyin-hint">1手 = 50个大盲</div>
+  </div>
+  <div class="sheet-actions">
+    <button class="btn-primary" onclick="confirmAddPlayer()">确认添加</button>
+  </div>
+</div>
+
+<!-- ===== 玩家追加买入弹窗 ===== -->
+<div class="sheet-backdrop" id="chip-sheet-backdrop" onclick="closeChipSheet()"></div>
+<div class="sheet" id="chip-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title" id="chip-sheet-title">追加买入</div>
+  <div class="form-group">
+    <label class="form-label">追加买入（手）</label>
+    <input type="number" id="cs-buyin" placeholder="如：1" min="1" step="1" inputmode="numeric" />
+    <div class="chip-presets" id="cs-buyin-presets"></div>
+    <div style="font-size:12px;color:var(--text2);margin-top:5px" id="cs-buyin-hint">1手 = 50个大盲</div>
+  </div>
+  <div class="sheet-actions">
+    <button class="btn-primary" onclick="confirmBuyIn()">确认买入</button>
+  </div>
+</div>
+
+<!-- ===== 模态对话框（通用）===== -->
+<div class="modal-backdrop" id="modal-backdrop">
+  <div class="modal">
+    <h3 id="modal-title">确认</h3>
+    <p id="modal-msg"></p>
+    <div class="modal-actions" id="modal-actions"></div>
+  </div>
+</div>
+
+<!-- ===== Toast ===== -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// 数据层
+// ============================================================
+const DB = {
+  RECORDS_KEY: 'poker_records',
+  TAGS_KEY: 'poker_tags',
+  DEFAULT_TAGS: ['现金局','锦标赛','线上','线下','深筹','短筹','常规桌','快速局','娱乐局'],
+  BLINDS_PRESETS: ['10/20','25/50','50/100','25/25/50','100/200','锦标赛'],
+
+  _parse(key, fallback) {
+    try {
+      const v = localStorage.getItem(key);
+      return v ? JSON.parse(v) : fallback;
+    } catch { return fallback; }
+  },
+  _save(key, val) {
+    localStorage.setItem(key, JSON.stringify(val));
+  },
+
+  getRecords() { return this._parse(this.RECORDS_KEY, []); },
+  saveRecords(arr) { this._save(this.RECORDS_KEY, arr); },
+
+  getTags() {
+    const custom = this._parse(this.TAGS_KEY, []);
+    const all = [...this.DEFAULT_TAGS];
+    custom.forEach(t => { if (!all.includes(t)) all.push(t); });
+    return all;
+  },
+  addTag(tag) {
+    const custom = this._parse(this.TAGS_KEY, []);
+    if (!custom.includes(tag) && !this.DEFAULT_TAGS.includes(tag)) {
+      custom.push(tag);
+      this._save(this.TAGS_KEY, custom);
+    }
+  },
+  getCustomTags() { return this._parse(this.TAGS_KEY, []); },
+
+  addRecord(rec) {
+    const arr = this.getRecords();
+    arr.push(rec);
+    this.saveRecords(arr);
+  },
+  updateRecord(rec) {
+    const arr = this.getRecords();
+    const idx = arr.findIndex(r => r.id === rec.id);
+    if (idx >= 0) { arr[idx] = rec; this.saveRecords(arr); }
+  },
+  deleteRecord(id) {
+    const arr = this.getRecords().filter(r => r.id !== id);
+    this.saveRecords(arr);
+  },
+
+  calcStats(records) {
+    if (!records.length) return { total: 0, count: 0, duration: 0, hourly: 0, winrate: 0 };
+    const total = records.reduce((s, r) => s + r.amount, 0);
+    const duration = records.reduce((s, r) => s + r.duration, 0);
+    const wins = records.filter(r => r.amount > 0).length;
+    return {
+      total: total,
+      count: records.length,
+      duration: duration,
+      hourly: duration > 0 ? total / duration : 0,
+      winrate: records.length > 0 ? (wins / records.length * 100) : 0,
+    };
+  },
+
+  // 从所有记录中提取有玩家名的唯一玩家列表（按出现次数排序）
+  getPlayerNames() {
+    const map = {};
+    this.getRecords().forEach(r => {
+      if (r.playerName) map[r.playerName] = (map[r.playerName] || 0) + 1;
+    });
+    return Object.entries(map).sort((a, b) => b[1] - a[1]).map(e => e[0]);
+  }
+};
+
+// ============================================================
+// 工具函数
+// ============================================================
+function genId() { return Date.now() + '_' + Math.random().toString(36).slice(2, 8); }
+
+function fmtAmount(v) {
+  const abs = Math.abs(v).toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  if (v > 0) return '+¥' + abs;
+  if (v < 0) return '-¥' + abs;
+  return '¥0';
+}
+
+function fmtAmountClass(v) {
+  if (v > 0) return 'amount-profit';
+  if (v < 0) return 'amount-loss';
+  return 'amount-zero';
+}
+
+function fmtDate(iso) {
+  const d = new Date(iso);
+  const mo = d.getMonth() + 1;
+  const da = d.getDate();
+  return `${mo}/${da}`;
+}
+
+function fmtDateFull(iso) {
+  const d = new Date(iso);
+  return d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+function localNow() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function showToast(msg, duration = 2200) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), duration);
+}
+
+function csvEscape(v) {
+  const s = String(v === null || v === undefined ? '' : v);
+  if (s.includes(',') || s.includes('"') || s.includes('\n')) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
+// ============================================================
+// 页面导航
+// ============================================================
+let currentPage = 'home';
+let currentPlayer = null; // null = 未选/自动，string = 玩家名
+
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.querySelectorAll('.bottom-nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('nav-' + name).classList.add('active');
+  currentPage = name;
+  if (name === 'query') renderQueryPage();
+  if (name === 'home') renderHome();
+  if (name === 'table') renderTablePage();
+}
+
+// ============================================================
+// 记分板数据层
+// ============================================================
+const TableDB = {
+  SESSION_KEY: 'poker_table_session',   // 进行中的局
+  HISTORY_KEY: 'poker_table_history',   // 历史记分局列表
+
+  getSession() {
+    try {
+      const v = localStorage.getItem(this.SESSION_KEY);
+      return v ? JSON.parse(v) : null;
+    } catch { return null; }
+  },
+  saveSession(s) {
+    localStorage.setItem(this.SESSION_KEY, JSON.stringify(s));
+  },
+  clearSession() {
+    localStorage.removeItem(this.SESSION_KEY);
+  },
+
+  getHistory() {
+    try {
+      const v = localStorage.getItem(this.HISTORY_KEY);
+      return v ? JSON.parse(v) : [];
+    } catch { return []; }
+  },
+  pushHistory(s) {
+    const arr = this.getHistory();
+    arr.unshift(s);
+    if (arr.length > 50) arr.length = 50;
+    localStorage.setItem(this.HISTORY_KEY, JSON.stringify(arr));
+  },
+  deleteHistory(id) {
+    const arr = this.getHistory().filter(s => s.id !== id);
+    localStorage.setItem(this.HISTORY_KEY, JSON.stringify(arr));
+  },
+  getHistoryById(id) {
+    return this.getHistory().find(s => s.id === id) || null;
+  },
+
+  // 新建局
+  newSession(blinds, pointRate, smallBlind, bigBlind) {
+    return {
+      id: genId(),
+      blinds: blinds || '',
+      smallBlind: smallBlind || null,
+      bigBlind: bigBlind || null,
+      pointRate: pointRate || 20,  // 1元=N分（默认20分/元）
+      startTime: new Date().toISOString(),
+      endTime: null,
+      players: [],
+    };
+  },
+
+  // 玩家盈亏 = 筹码 - 总买入
+  playerPnl(player) {
+    const totalBuyin = player.buyins.reduce((s, b) => s + b, 0);
+    return player.stack - totalBuyin;
+  },
+
+  // 桌面筹码总量 = 所有玩家总买入（用于校验）
+  tableTotalChips(session) {
+    return session.players.reduce((s, p) => s + p.buyins.reduce((a, b) => a + b, 0), 0);
+  },
+};
+
+// ============================================================
+// 记分板 UI 状态
+// ============================================================
+let _chipTarget = null;       // { playerId, action: 'buy'|'stack' }
+let _chipTab = 'buy';
+const CHIP_PRESETS = [100, 200, 500, 1000, 2000, 5000];
+const TABLE_PAGE_SIZE = 8;    // 历史牌局每页条数
+let _tableHistoryPage = 0;    // 当前历史页（0-indexed）
+let _tableView = 'history';   // 'history' | 'session'
+
+// ============================================================
+// 记分板页面渲染
+// ============================================================
+function renderTablePage() {
+  const session = TableDB.getSession();
+  const body = document.getElementById('table-page-body');
+  const topActions = document.getElementById('table-topbar-actions');
+
+  // 无进行中的局时强制显示历史
+  if (!session) _tableView = 'history';
+
+  if (_tableView === 'history' || !session) {
+    topActions.innerHTML = session
+      ? `<button class="btn-outline btn-sm" onclick="_tableView='session';renderTablePage()">返回记分</button>`
+      : '';
+    body.innerHTML = renderTableHistoryView();
+    return;
+  }
+
+  // 当前记分视图
+  topActions.innerHTML = `
+    <button class="btn-outline btn-sm" onclick="_tableView='history';renderTablePage()">历史</button>
+  `;
+
+  const totalIn = TableDB.tableTotalChips(session);
+  const totalStack = session.players.reduce((s, p) => s + p.stack, 0);
+  const diff = totalStack - totalIn;   // 正=多出筹码，负=少了筹码
+  const rate = session.pointRate || 100;  // 1元=rate分
+
+  const absDiff = Math.abs(diff);
+  const diffLabel = diff === 0
+    ? `<span style="color:var(--brand)">✓ 对账平</span>`
+    : diff > 0
+      ? `<span style="color:var(--brand)">多赢 ${absDiff}分</span>`
+      : `<span style="color:var(--red)">多输 ${absDiff}分</span>`;
+
+  const blindsDisplay = session.blinds
+    ? `<div class="table-meta-item" onclick="editSessionMeta()" style="cursor:pointer">盲注 <span style="border-bottom:1px dashed var(--border)">${session.blinds}</span></div>`
+    : `<div class="table-meta-item" onclick="editSessionMeta()" style="cursor:pointer;color:var(--brand)">＋ 设盲注</div>`;
+
+  body.innerHTML = `
+    <div class="table-meta">
+      ${blindsDisplay}
+      <div class="table-meta-item" onclick="editSessionMeta()" style="cursor:pointer">比例 <span style="border-bottom:1px dashed var(--border)">1元=${rate}分</span></div>
+      <div class="table-meta-item">开局 <span>${fmtDateFull(session.startTime)}</span></div>
+      <div class="table-pot">${diffLabel}</div>
+    </div>
+    <div class="players-list" id="players-list">
+      ${session.players.length === 0
+        ? `<div class="empty-hint" style="padding:24px 0">还没有玩家，点击下方按钮添加</div>`
+        : session.players.map(p => playerCardHTML(p, rate)).join('')}
+    </div>
+    <button class="add-player-btn" onclick="openPlayerSheet()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      添加玩家
+    </button>
+    <div class="table-end-bar">
+      <button class="btn-outline" onclick="endTableSession(false)">丢弃本局</button>
+      <button class="btn-primary" onclick="endTableSession(true)">结束并保存战绩</button>
+    </div>
+  `;
+}
+
+function renderTableHistoryView() {
+  const session = TableDB.getSession();
+  const history = TableDB.getHistory();
+  const total = history.length;
+  const totalPages = Math.max(1, Math.ceil(total / TABLE_PAGE_SIZE));
+  _tableHistoryPage = Math.min(_tableHistoryPage, totalPages - 1);
+  const pageItems = history.slice(_tableHistoryPage * TABLE_PAGE_SIZE, (_tableHistoryPage + 1) * TABLE_PAGE_SIZE);
+
+  const sessionBanner = session ? `
+    <div style="margin:12px 16px 4px;background:#1a2e24;border:1px solid var(--brand);border-radius:var(--radius-card);padding:12px 14px;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-size:13px;font-weight:600;color:var(--brand)">进行中的牌局</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:2px">${session.blinds || '盲注未设置'} · ${session.players.length} 人 · ${fmtDateFull(session.startTime)}</div>
+      </div>
+      <button class="btn-primary btn-sm" onclick="_tableView='session';renderTablePage()">查看</button>
+    </div>` : '';
+
+  const listHTML = pageItems.length === 0
+    ? `<div class="empty-hint">暂无历史牌局记录</div>`
+    : pageItems.map(s => tableHistoryItemHTML(s)).join('');
+
+  const pagination = totalPages <= 1 ? '' : `
+    <div style="display:flex;align-items:center;justify-content:center;gap:12px;padding:12px 16px 4px">
+      <button class="btn-outline btn-sm" onclick="tableHistoryPageGo(-1)" ${_tableHistoryPage === 0 ? 'disabled style="opacity:.4"' : ''}>
+        ‹ 上一页
+      </button>
+      <span style="font-size:13px;color:var(--text2)">${_tableHistoryPage + 1} / ${totalPages}</span>
+      <button class="btn-outline btn-sm" onclick="tableHistoryPageGo(1)" ${_tableHistoryPage >= totalPages - 1 ? 'disabled style="opacity:.4"' : ''}>
+        下一页 ›
+      </button>
+    </div>`;
+
+  return `
+    ${sessionBanner}
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px 8px">
+      <div class="section-title">历史牌局</div>
+      <button class="btn-primary btn-sm" onclick="newTableSession()">＋ 新建牌局</button>
+    </div>
+    <div style="padding:0 16px;display:flex;flex-direction:column;gap:8px">
+      ${listHTML}
+    </div>
+    ${pagination}`;
+}
+
+function tableHistoryPageGo(delta) {
+  _tableHistoryPage += delta;
+  const body = document.getElementById('table-page-body');
+  body.innerHTML = renderTableHistoryView();
+}
+
+function playerCardHTML(p, rate) {
+  rate = rate || 100;  // 1元=rate分
+  const totalBuyin = p.buyins.reduce((s, b) => s + b, 0);
+  const pnl = p.stack - totalBuyin;               // 分
+  const pnlYuan = (pnl / rate).toFixed(2);        // 元
+  const pnlYuanNum = parseFloat(pnlYuan);
+  const isWinner = pnl > 0, isLoser = pnl < 0;
+
+  const historyHTML = p.buyins.map((b, i) =>
+    `<span class="buying-chip">${i + 1}. ${b.toLocaleString()}分
+      <span class="rm" onclick="removeBuyin('${p.id}',${i})">×</span>
+    </span>`
+  ).join('');
+
+  return `
+    <div class="player-card ${isWinner ? 'is-winner' : isLoser ? 'is-loser' : ''}" id="pc-${p.id}">
+      <div class="player-main">
+        <div class="player-info">
+          <div class="player-name">${p.name}</div>
+          <div class="player-buying-total">
+            买入 ${totalBuyin.toLocaleString()}
+            <span onclick="toggleBuyingHistory('${p.id}')" style="color:var(--brand);cursor:pointer;margin-left:4px">▾</span>
+          </div>
+        </div>
+        <div class="player-right">
+          <input type="number" class="stack-input" value="${p.stack}"
+            inputmode="numeric" min="0"
+            onblur="saveStackInput(this,'${p.id}')"
+            onkeydown="if(event.key==='Enter'){this.blur()}" />
+          <span style="font-size:10px;color:var(--text2)">分</span>
+          <span class="player-pnl ${isWinner ? 'amount-profit' : isLoser ? 'amount-loss' : 'amount-zero'}" style="margin-left:4px">
+            ${pnl >= 0 ? '+' : ''}${pnl.toLocaleString()}<span style="font-size:9px;opacity:.6">(${pnlYuanNum >= 0 ? '+' : ''}¥${pnlYuan})</span>
+          </span>
+        </div>
+      </div>
+      <div class="buying-history" id="bh-${p.id}">
+        <div class="buying-chips">${historyHTML}</div>
+      </div>
+      <div class="player-actions">
+        <button class="player-action-btn buy-btn" onclick="openChipSheet('${p.id}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          买入
+        </button>
+        <button class="player-action-btn del-btn" onclick="removePlayer('${p.id}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          移除
+        </button>
+      </div>
+    </div>`;
+}
+
+
+function tableHistoryItemHTML(s) {
+  const rate = s.pointRate || 100;  // 1元=rate分
+  const players = s.players.map(p => {
+    const pnlPts = TableDB.playerPnl(p);
+    const pnlYuan = pnlPts / rate;
+    return `<span class="table-history-player ${pnlPts > 0 ? 'win' : pnlPts < 0 ? 'lose' : ''}">
+      ${p.name} ${pnlYuan >= 0 ? '+' : ''}¥${pnlYuan.toLocaleString()}
+    </span>`;
+  }).join('');
+  return `
+    <div class="swipe-row" data-session-id="${s.id}">
+      <div class="swipe-content">
+        <div class="table-history-item" style="margin-bottom:0;border-radius:var(--radius-card)">
+          <div class="table-history-top">
+            <span class="table-history-date">${fmtDateFull(s.startTime)}</span>
+            ${s.blinds ? `<span class="table-history-blinds">${s.blinds}</span>` : ''}
+            <span class="table-history-blinds">1元=${rate}分</span>
+          </div>
+          <div class="table-history-players">${players}</div>
+        </div>
+      </div>
+      <div class="swipe-actions">
+        <button class="swipe-btn swipe-btn-continue" onclick="continueTableSession('${s.id}')" title="继续编辑">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+        <button class="swipe-btn swipe-btn-delete" onclick="deleteTableHistory('${s.id}')" title="删除">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+        </button>
+      </div>
+    </div>`;
+}
+
+// ============================================================
+// 新建局
+// ============================================================
+function newTableSession() {
+  // 若已有进行中的局，先询问
+  if (TableDB.getSession()) {
+    showModal('已有进行中的牌局', '开新局会丢弃当前未结束的局，确定吗？', [
+      { label: '取消', cls: 'btn-outline', action: closeModal },
+      { label: '放弃旧局', cls: 'btn-danger', style: 'border:1px solid var(--red);border-radius:var(--radius-btn)', action: () => {
+        closeModal();
+        _startNewSession();
+      }},
+    ]);
+    return;
+  }
+  _startNewSession();
+}
+
+function nsAutoFillBB() {
+  const sb = parseFloat(document.getElementById('ns-sb').value);
+  const bbEl = document.getElementById('ns-bb');
+  if (sb > 0) bbEl.value = sb * 2;
+}
+
+function _buildBlindsStr(sb, bb) {
+  if (!sb && !bb) return '';
+  if (sb && bb) return `${sb}/${bb}`;
+  if (bb) return `${bb}`;
+  return `${sb}`;
+}
+
+function _openNewSessionSheet(sbVal, bbVal, rateVal) {
+  document.getElementById('ns-sb').value = sbVal != null ? sbVal : '';
+  document.getElementById('ns-bb').value = bbVal != null ? bbVal : '';
+  document.getElementById('ns-rate').value = rateVal != null ? rateVal : 20;
+  document.getElementById('ns-rate-presets').innerHTML =
+    [1, 2, 5, 10, 20].map(v => `<button class="chip-preset-btn" onclick="document.getElementById('ns-rate').value=${v}">${v}分</button>`).join('');
+  document.getElementById('new-session-backdrop').classList.add('open');
+  document.getElementById('new-session-sheet').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function _startNewSession() {
+  _openNewSessionSheet(null, null, 20);
+}
+
+function closeNewSessionSheet() {
+  document.getElementById('new-session-backdrop').classList.remove('open');
+  document.getElementById('new-session-sheet').classList.remove('open');
+  document.body.style.overflow = '';
+  _editingSessionMeta = null;
+  document.querySelector('#new-session-sheet .sheet-title').textContent = '新建牌局';
+}
+
+function confirmNewSession() {
+  const sb = parseFloat(document.getElementById('ns-sb').value) || 0;
+  const bb = parseFloat(document.getElementById('ns-bb').value) || 0;
+  const blinds = _buildBlindsStr(sb || null, bb || null);
+  const rate = parseFloat(document.getElementById('ns-rate').value);
+  if (!rate || rate <= 0) { showToast('请设置金额/分数比例'); return; }
+
+  const existing = TableDB.getSession();
+  if (existing && existing.id === _editingSessionMeta) {
+    // 编辑模式：更新现有 session
+    existing.smallBlind = sb || null;
+    existing.bigBlind = bb || null;
+    existing.blinds = blinds;
+    existing.pointRate = rate;
+    TableDB.saveSession(existing);
+    _editingSessionMeta = null;
+    closeNewSessionSheet();
+    renderTablePage();
+    return;
+  }
+
+  closeNewSessionSheet();
+  const s = TableDB.newSession(blinds, rate, sb || null, bb || null);
+  TableDB.saveSession(s);
+  _tableView = 'session';
+  renderTablePage();
+}
+
+// 编辑进行中局的盲注/比例
+let _editingSessionMeta = null;
+function editSessionMeta() {
+  const session = TableDB.getSession();
+  if (!session) return;
+  _editingSessionMeta = session.id;
+  // 从现有 blinds 回填，或用 smallBlind/bigBlind 字段
+  const sb = session.smallBlind || null;
+  const bb = session.bigBlind || null;
+  _openNewSessionSheet(sb, bb, session.pointRate || 20);
+  // 改标题
+  document.querySelector('#new-session-sheet .sheet-title').textContent = '修改牌局设置';
+}
+
+// ============================================================
+// 添加玩家抽屉
+// ============================================================
+function _handsPresets() {
+  return [1, 2, 3, 4, 5, 10];
+}
+
+function _updateBuyinHint(inputId, hintId) {
+  const session = TableDB.getSession();
+  const bb = session ? _bigBlindFromSession(session) : null;
+  const hands = parseFloat(document.getElementById(inputId).value) || 0;
+  const el = document.getElementById(hintId);
+  if (!el) return;
+  if (bb && hands > 0) {
+    el.textContent = `${hands}手 = ${hands * 50}个大盲 = ${hands * 50 * bb}分`;
+  } else if (bb) {
+    el.textContent = `1手 = 50个大盲 = ${50 * bb}分（大盲 ${bb}分）`;
+  } else {
+    el.textContent = '1手 = 50个大盲';
+  }
+}
+
+// 获取大盲分数：优先用字段，其次解析字符串
+function _bigBlindFromSession(session) {
+  if (session.bigBlind) return session.bigBlind;
+  if (!session.blinds) return null;
+  const parts = session.blinds.split('/').map(Number).filter(n => n > 0);
+  return parts.length >= 2 ? parts[parts.length - 1] : null;
+}
+
+function openPlayerSheet() {
+  document.getElementById('ps-name').value = '';
+  document.getElementById('ps-buyin').value = '';
+  document.getElementById('ps-buyin-presets').innerHTML =
+    _handsPresets().map(v => `<button class="chip-preset-btn" onclick="document.getElementById('ps-buyin').value=${v};_updateBuyinHint('ps-buyin','ps-buyin-hint')">${v}手</button>`).join('');
+  _updateBuyinHint('ps-buyin', 'ps-buyin-hint');
+
+  document.getElementById('player-sheet-backdrop').classList.add('open');
+  document.getElementById('player-sheet').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => document.getElementById('ps-name').focus(), 300);
+
+  // 实时更新提示
+  document.getElementById('ps-buyin').oninput = () => _updateBuyinHint('ps-buyin', 'ps-buyin-hint');
+}
+
+function closePlayerSheet() {
+  document.getElementById('player-sheet-backdrop').classList.remove('open');
+  document.getElementById('player-sheet').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function confirmAddPlayer() {
+  const name = document.getElementById('ps-name').value.trim();
+  if (!name) { showToast('请输入玩家姓名'); return; }
+  const hands = parseFloat(document.getElementById('ps-buyin').value);
+  if (!hands || hands <= 0) { showToast('请输入有效的买入手数'); return; }
+
+  const session = TableDB.getSession();
+  if (!session) return;
+
+  if (session.players.some(p => p.name === name)) {
+    showToast('该玩家已在牌局中'); return;
+  }
+
+  const bb = _bigBlindFromSession(session);
+  const pts = bb ? hands * 50 * bb : hands * 50;  // 分数
+
+  session.players.push({ id: genId(), name, buyins: [pts], stack: pts });
+  TableDB.saveSession(session);
+  closePlayerSheet();
+  renderTablePage();
+}
+
+// ============================================================
+// 追加买入抽屉
+// ============================================================
+function openChipSheet(playerId) {
+  _chipTarget = { playerId };
+  const session = TableDB.getSession();
+  if (!session) return;
+  const player = session.players.find(p => p.id === playerId);
+  if (!player) return;
+
+  document.getElementById('chip-sheet-title').textContent = `${player.name} · 追加买入`;
+  document.getElementById('cs-buyin').value = '';
+  document.getElementById('cs-buyin-presets').innerHTML =
+    _handsPresets().map(v => `<button class="chip-preset-btn" onclick="document.getElementById('cs-buyin').value=${v};_updateBuyinHint('cs-buyin','cs-buyin-hint')">${v}手</button>`).join('');
+  _updateBuyinHint('cs-buyin', 'cs-buyin-hint');
+
+  document.getElementById('chip-sheet-backdrop').classList.add('open');
+  document.getElementById('chip-sheet').classList.add('open');
+  document.body.style.overflow = 'hidden';
+
+  document.getElementById('cs-buyin').oninput = () => _updateBuyinHint('cs-buyin', 'cs-buyin-hint');
+}
+
+function closeChipSheet() {
+  document.getElementById('chip-sheet-backdrop').classList.remove('open');
+  document.getElementById('chip-sheet').classList.remove('open');
+  document.body.style.overflow = '';
+  _chipTarget = null;
+}
+
+function confirmBuyIn() {
+  if (!_chipTarget) return;
+  const session = TableDB.getSession();
+  if (!session) return;
+  const player = session.players.find(p => p.id === _chipTarget.playerId);
+  if (!player) return;
+
+  const hands = parseFloat(document.getElementById('cs-buyin').value);
+  if (!hands || hands <= 0) { showToast('请输入有效的买入手数'); return; }
+
+  const bb = _bigBlindFromSession(session);
+  const pts = bb ? hands * 50 * bb : hands * 50;
+
+  player.buyins.push(pts);
+  player.stack += pts;
+  showToast(`${player.name} 追加买入 ${hands}手（${pts.toLocaleString()}分）`);
+
+  TableDB.saveSession(session);
+  closeChipSheet();
+  renderTablePage();
+}
+
+// ============================================================
+// 内联编辑分数（input 失焦时保存）
+// ============================================================
+function saveStackInput(input, playerId) {
+  const session = TableDB.getSession();
+  if (!session) return;
+  const player = session.players.find(p => p.id === playerId);
+  if (!player) return;
+  const num = parseFloat(input.value);
+  if (isNaN(num) || num < 0) { input.value = player.stack; return; }
+  if (num === player.stack) return;  // 没变化不重渲染
+  player.stack = num;
+  TableDB.saveSession(session);
+  // 只更新当前卡片的盈亏显示，不整体重渲染（避免输入框失焦）
+  const rate = session.pointRate || 20;
+  const totalBuyin = player.buyins.reduce((s, b) => s + b, 0);
+  const pnl = num - totalBuyin;
+  const pnlYuan = (pnl / rate).toFixed(2);
+  const pnlYuanNum = parseFloat(pnlYuan);
+  const card = document.getElementById('pc-' + playerId);
+  if (!card) return;
+  const pnlEl = card.querySelector('.player-pnl');
+  if (pnlEl) {
+    pnlEl.className = `player-pnl ${pnl > 0 ? 'amount-profit' : pnl < 0 ? 'amount-loss' : 'amount-zero'}`;
+    pnlEl.innerHTML = `${pnl >= 0 ? '+' : ''}${pnl.toLocaleString()}<span style="font-size:9px;opacity:.6">(${pnlYuanNum >= 0 ? '+' : ''}¥${pnlYuan})</span>`;
+  }
+  card.className = `player-card${pnl > 0 ? ' is-winner' : pnl < 0 ? ' is-loser' : ''}`;
+  // 更新 meta 栏对账数据
+  _refreshMetaDiff(session);
+}
+
+// ============================================================
+// 仅刷新 meta 栏对账数字（不重渲整个页面）
+// ============================================================
+function _refreshMetaDiff(session) {
+  const totalIn = TableDB.tableTotalChips(session);
+  const totalStack = session.players.reduce((s, p) => s + p.stack, 0);
+  const diff = totalStack - totalIn;
+  const absDiff = Math.abs(diff);
+  const html = diff === 0
+    ? `<span style="color:var(--brand)">✓ 对账平</span>`
+    : diff > 0
+      ? `<span style="color:var(--brand)">多赢 ${absDiff}分</span>`
+      : `<span style="color:var(--red)">多输 ${absDiff}分</span>`;
+  const pot = document.querySelector('.table-pot');
+  if (pot) pot.innerHTML = html;
+}
+
+// ============================================================
+// 撤销某次买入
+// ============================================================
+function removeBuyin(playerId, idx) {
+  const session = TableDB.getSession();
+  if (!session) return;
+  const player = session.players.find(p => p.id === playerId);
+  if (!player || player.buyins.length <= 1) {
+    showToast('至少保留一次买入记录'); return;
+  }
+  const val = player.buyins[idx];
+  showModal('撤销买入', `确定撤销第 ${idx + 1} 次买入（${val.toLocaleString()}分）吗？分数将同步扣减。`, [
+    { label: '取消', cls: 'btn-outline', action: closeModal },
+    { label: '撤销', cls: 'btn-danger', style: 'border:1px solid var(--red);border-radius:var(--radius-btn)', action: () => {
+      player.buyins.splice(idx, 1);
+      player.stack = Math.max(0, player.stack - val);
+      TableDB.saveSession(session);
+      closeModal();
+      renderTablePage();
+    }},
+  ]);
+}
+
+// ============================================================
+// 展开/折叠买入历史
+// ============================================================
+function toggleBuyingHistory(playerId) {
+  const el = document.getElementById('bh-' + playerId);
+  if (el) el.classList.toggle('open');
+}
+
+// ============================================================
+// 移除玩家
+// ============================================================
+function removePlayer(playerId) {
+  const session = TableDB.getSession();
+  if (!session) return;
+  const player = session.players.find(p => p.id === playerId);
+  if (!player) return;
+  showModal('移除玩家', `确定将 "${player.name}" 从本局移除吗？`, [
+    { label: '取消', cls: 'btn-outline', action: closeModal },
+    { label: '移除', cls: 'btn-danger', style: 'border:1px solid var(--red);border-radius:var(--radius-btn)', action: () => {
+      session.players = session.players.filter(p => p.id !== playerId);
+      TableDB.saveSession(session);
+      closeModal();
+      renderTablePage();
+    }},
+  ]);
+}
+
+// ============================================================
+// 结束牌局
+// ============================================================
+function endTableSession(saveToLedger) {
+  const session = TableDB.getSession();
+  if (!session) return;
+  if (saveToLedger && session.players.length === 0) {
+    showModal('无玩家', '保存战绩需要至少一名玩家，请先添加玩家。', [
+      { label: '好的', cls: 'btn-primary', action: closeModal }
+    ]);
+    return;
+  }
+
+  const msg = saveToLedger
+    ? '将结束本局，并把每位玩家的盈亏自动添加到战绩中。确定吗？'
+    : '将丢弃本局所有记录，不保存战绩也不保留历史，确定吗？';
+
+  showModal('结束牌局', msg, [
+    { label: '取消', cls: 'btn-outline', action: closeModal },
+    { label: '确定', cls: saveToLedger ? 'btn-primary' : 'btn-danger',
+      style: saveToLedger ? '' : 'border:1px solid var(--red);border-radius:var(--radius-btn)',
+      action: () => {
+        closeModal();
+        if (saveToLedger) {
+          session.endTime = new Date().toISOString();
+          const rate = session.pointRate || 100;  // 1元=rate分
+          const duration = Math.max(0.1,
+            parseFloat(((new Date(session.endTime) - new Date(session.startTime)) / 3600000).toFixed(1))
+          );
+          session.players.forEach(p => {
+            const pnlPts = TableDB.playerPnl(p);                   // 分
+            const pnlYuan = parseFloat((pnlPts / rate).toFixed(2)); // 元
+            const totalBuyin = p.buyins.reduce((s, b) => s + b, 0);
+            DB.addRecord({
+              id: genId(),
+              amount: pnlYuan,
+              duration,
+              blinds: session.blinds || '',
+              tags: ['现金局'],
+              note: `牌局记分 · ${p.name}，买入 ${totalBuyin.toLocaleString()}分，收筹 ${p.stack.toLocaleString()}分，1元=${rate}分`,
+              playerName: p.name,
+              datetime: session.endTime,
+            });
+          });
+          // 保存战绩时才写入历史
+          TableDB.pushHistory(session);
+          TableDB.clearSession();
+          _tableView = 'history';
+          _tableHistoryPage = 0;
+          renderHome();
+          renderTablePage();
+          openSharePage(session);
+        } else {
+          showToast('已丢弃本局');
+          TableDB.clearSession();
+          _tableView = 'history';
+          _tableHistoryPage = 0;
+          renderTablePage();
+        }
+      }
+    },
+  ]);
+}
+
+// ============================================================
+// 战绩分享页
+// ============================================================
+function openSharePage(session) {
+  // 若已有分享页则先移除
+  const old = document.getElementById('share-overlay');
+  if (old) old.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'share-overlay';
+  overlay.className = 'share-overlay';
+  overlay.innerHTML = `
+    <div class="share-topbar">
+      <h2>战绩结算</h2>
+      <button class="btn-outline btn-sm" onclick="closeSharePage()">关闭</button>
+    </div>
+    <div class="share-canvas-wrap">
+      <canvas id="share-canvas"></canvas>
+      <div class="share-hint">长按图片可保存到相册</div>
+    </div>
+    <div class="share-actions">
+      <button class="btn-outline" onclick="closeSharePage()">返回</button>
+      <button class="btn-primary" onclick="downloadShareImage()">
+        下载图片
+      </button>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  // 等 DOM 挂载后绘制
+  requestAnimationFrame(() => drawShareCanvas(session));
+}
+
+function closeSharePage() {
+  const el = document.getElementById('share-overlay');
+  if (el) el.remove();
+}
+
+function drawShareCanvas(session) {
+  const canvas = document.getElementById('share-canvas');
+  if (!canvas) return;
+
+  const rate = session.pointRate || 20;
+  const players = [...session.players].sort((a, b) => {
+    return TableDB.playerPnl(b) - TableDB.playerPnl(a);
+  });
+
+  // 尺寸
+  const W = Math.min(window.innerWidth - 32, 400);
+  const TITLE_H = 72;
+  const META_H = 36;
+  const ROW_H = 56;
+  const FOOTER_H = 40;
+  const PAD = 20;
+  const H = TITLE_H + META_H + players.length * ROW_H + FOOTER_H + PAD;
+
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  // 背景
+  ctx.fillStyle = '#1a1a1a';
+  roundRect(ctx, 0, 0, W, H, 12);
+  ctx.fill();
+
+  // 顶部彩色渐变条
+  const grad = ctx.createLinearGradient(0, 0, W, 0);
+  grad.addColorStop(0, '#10b981');
+  grad.addColorStop(1, '#059669');
+  ctx.fillStyle = grad;
+  roundRect(ctx, 0, 0, W, 6, { tl: 12, tr: 12, br: 0, bl: 0 });
+  ctx.fill();
+
+  let y = 6;
+
+  // 标题
+  ctx.fillStyle = '#e5e7eb';
+  ctx.font = `bold ${18 * dpr / dpr}px -apple-system, "PingFang SC", sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.fillText('Poker Ledger · 战绩结算', PAD, y + 28);
+
+  // 时间
+  ctx.fillStyle = '#9ca3af';
+  ctx.font = `${12}px -apple-system, "PingFang SC", sans-serif`;
+  ctx.fillText(new Date(session.endTime || session.startTime).toLocaleString('zh-CN', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }), PAD, y + 48);
+  y += TITLE_H;
+
+  // meta 行（盲注 + 比例）
+  ctx.fillStyle = '#2a2a2a';
+  ctx.fillRect(0, y, W, META_H);
+  ctx.fillStyle = '#9ca3af';
+  ctx.font = `${12}px -apple-system, "PingFang SC", sans-serif`;
+  const metaLeft = session.blinds ? `盲注 ${session.blinds}` : '盲注未设置';
+  const metaRight = `1元 = ${rate}分`;
+  ctx.textAlign = 'left';
+  ctx.fillText(metaLeft, PAD, y + 23);
+  ctx.textAlign = 'right';
+  ctx.fillText(metaRight, W - PAD, y + 23);
+  y += META_H;
+
+  // 分割线
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(W - PAD, y); ctx.stroke();
+
+  // 玩家行
+  players.forEach((p, i) => {
+    const pnlPts = TableDB.playerPnl(p);
+    const pnlYuan = (pnlPts / rate).toFixed(2);
+    const pnlYuanNum = parseFloat(pnlYuan);
+    const totalBuyin = p.buyins.reduce((s, b) => s + b, 0);
+    const rowY = y + i * ROW_H;
+    const midY = rowY + ROW_H / 2;
+
+    // 行背景（奇偶交替）
+    ctx.fillStyle = i % 2 === 0 ? '#1e1e1e' : '#222';
+    ctx.fillRect(0, rowY, W, ROW_H);
+
+    // 排名圆圈
+    const rank = i + 1;
+    const rankColor = rank === 1 ? '#f59e0b' : rank === 2 ? '#9ca3af' : rank === 3 ? '#b45309' : '#374151';
+    ctx.fillStyle = rankColor;
+    ctx.beginPath();
+    ctx.arc(PAD + 12, midY, 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${11}px -apple-system, "PingFang SC", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText(rank, PAD + 12, midY + 4);
+
+    // 玩家名
+    ctx.fillStyle = '#e5e7eb';
+    ctx.font = `600 ${14}px -apple-system, "PingFang SC", sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.fillText(p.name, PAD + 30, midY - 5);
+
+    // 买入信息
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = `${11}px -apple-system, "PingFang SC", sans-serif`;
+    ctx.fillText(`买入 ${totalBuyin.toLocaleString()}分 → 收筹 ${p.stack.toLocaleString()}分`, PAD + 30, midY + 10);
+
+    // 盈亏金额（右对齐）
+    const color = pnlYuanNum > 0 ? '#10b981' : pnlYuanNum < 0 ? '#ef4444' : '#9ca3af';
+    ctx.fillStyle = color;
+    ctx.font = `bold ${17}px -apple-system, "PingFang SC", sans-serif`;
+    ctx.textAlign = 'right';
+    const sign = pnlYuanNum >= 0 ? '+' : '';
+    ctx.fillText(`${sign}¥${pnlYuan}`, W - PAD, midY - 4);
+
+    // 分数（右对齐，小字）
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.65;
+    ctx.font = `${11}px -apple-system, "PingFang SC", sans-serif`;
+    ctx.fillText(`${pnlPts >= 0 ? '+' : ''}${pnlPts.toLocaleString()}分`, W - PAD, midY + 11);
+    ctx.globalAlpha = 1;
+  });
+
+  y += players.length * ROW_H;
+
+  // 分割线
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(W - PAD, y); ctx.stroke();
+
+  // 页脚
+  ctx.fillStyle = '#4b5563';
+  ctx.font = `${11}px -apple-system, "PingFang SC", sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.fillText('Poker Ledger · 扑克记账', W / 2, y + 26);
+}
+
+// 辅助：带各角独立圆角的矩形
+function roundRect(ctx, x, y, w, h, r) {
+  if (typeof r === 'number') r = { tl: r, tr: r, br: r, bl: r };
+  ctx.beginPath();
+  ctx.moveTo(x + r.tl, y);
+  ctx.lineTo(x + w - r.tr, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r.tr);
+  ctx.lineTo(x + w, y + h - r.br);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r.br, y + h);
+  ctx.lineTo(x + r.bl, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r.bl);
+  ctx.lineTo(x, y + r.tl);
+  ctx.quadraticCurveTo(x, y, x + r.tl, y);
+  ctx.closePath();
+}
+
+function downloadShareImage() {
+  const canvas = document.getElementById('share-canvas');
+  if (!canvas) return;
+  const a = document.createElement('a');
+  const ts = new Date().toISOString().replace(/[-:T]/g,'').slice(0,14);
+  a.download = `poker_result_${ts}.png`;
+  a.href = canvas.toDataURL('image/png');
+  a.click();
+  showToast('图片已下载');
+}
+
+// ============================================================
+// 历史牌局：删除 / 继续
+// ============================================================
+function deleteTableHistory(id) {
+  showModal('删除牌局', '确定删除这条历史牌局记录吗？', [
+    { label: '取消', cls: 'btn-outline', action: closeModal },
+    { label: '删除', cls: 'btn-danger', style: 'border:1px solid var(--red);border-radius:var(--radius-btn)', action: () => {
+      TableDB.deleteHistory(id);
+      closeModal();
+      const body = document.getElementById('table-page-body');
+      body.innerHTML = renderTableHistoryView();
+    }},
+  ]);
+}
+
+function continueTableSession(id) {
+  const hist = TableDB.getHistoryById(id);
+  if (!hist) return;
+  const existing = TableDB.getSession();
+  const doRestore = () => {
+    // 从历史中移除，恢复为进行中
+    TableDB.deleteHistory(id);
+    const restored = Object.assign({}, hist, { endTime: null });
+    TableDB.saveSession(restored);
+    _tableView = 'session';
+    renderTablePage();
+    showToast('已恢复牌局，可继续编辑');
+  };
+  if (existing) {
+    showModal('已有进行中的牌局', '继续此局将丢弃当前进行中的牌局，确定吗？', [
+      { label: '取消', cls: 'btn-outline', action: closeModal },
+      { label: '继续此局', cls: 'btn-danger', style: 'border:1px solid var(--red);border-radius:var(--radius-btn)', action: () => {
+        closeModal();
+        doRestore();
+      }},
+    ]);
+  } else {
+    doRestore();
+  }
+}
+
+// ============================================================
+// 历史牌局左滑手势（事件委托）
+// ============================================================
+(function() {
+  let touchStartX = 0, touchStartY = 0, activeRow = null;
+
+  document.addEventListener('touchstart', e => {
+    const row = e.target.closest('.swipe-row');
+    if (!row) return;
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+    activeRow = row;
+  }, { passive: true });
+
+  document.addEventListener('touchend', e => {
+    if (!activeRow) return;
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    // 水平滑动幅度大于垂直才触发
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) {
+      if (dx < 0) {
+        // 左滑：展开操作按钮，关闭其他已展开的
+        document.querySelectorAll('.swipe-row.swiped').forEach(r => {
+          if (r !== activeRow) r.classList.remove('swiped');
+        });
+        activeRow.classList.add('swiped');
+      } else {
+        // 右滑：收起
+        activeRow.classList.remove('swiped');
+      }
+    }
+    activeRow = null;
+  }, { passive: true });
+
+  // 点击非 swipe-row 区域时收起所有
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.swipe-row')) {
+      document.querySelectorAll('.swipe-row.swiped').forEach(r => r.classList.remove('swiped'));
+    }
+  });
+})();
+
+// ============================================================
+// 首页
+// ============================================================
+let profitChart = null;
+
+function renderPlayerSwitcher() {
+  const names = DB.getPlayerNames();
+  const switcher = document.getElementById('player-switcher');
+  switcher.style.display = names.length ? 'flex' : 'none';
+  if (!names.length) return;
+
+  switcher.innerHTML = names.map(n =>
+    `<span class="player-chip ${currentPlayer === n ? 'active' : ''}" data-name="${n.replace(/"/g,'&quot;')}">${n}</span>`
+  ).join('');
+}
+
+function selectPlayer(name) {
+  if (currentPlayer === name) return;
+  currentPlayer = name;
+  // 只更新高亮，不重建 DOM
+  document.querySelectorAll('#player-switcher .player-chip').forEach(c => {
+    c.classList.toggle('active', c.dataset.name === name);
+  });
+  _renderHomeStats();
+}
+
+// 事件委托：点击选择器内任意 chip
+document.addEventListener('click', function(e) {
+  const chip = e.target.closest('#player-switcher .player-chip');
+  if (chip) selectPlayer(chip.dataset.name);
+});
+
+function renderHome() {
+  const names = DB.getPlayerNames();
+
+  // 自动选首位玩家（首次进入或当前玩家已不存在时）
+  if (names.length && (!currentPlayer || !names.includes(currentPlayer))) {
+    currentPlayer = names[0];
+  }
+  if (!names.length) {
+    currentPlayer = null;
+  }
+
+  renderPlayerSwitcher();
+  _renderHomeStats();
+}
+
+function _renderHomeStats() {
+  const allRecords = DB.getRecords();
+  const records = currentPlayer
+    ? allRecords.filter(r => r.playerName === currentPlayer)
+    : allRecords;
+
+  const stats = DB.calcStats(records);
+
+  // 统计卡片
+  const totalEl = document.getElementById('stat-total-amount');
+  totalEl.textContent = (stats.total >= 0 ? '+¥' : '-¥') + Math.abs(stats.total).toLocaleString('zh-CN', {maximumFractionDigits: 2});
+  totalEl.className = 'value ' + (stats.total > 0 ? 'profit' : stats.total < 0 ? 'loss' : 'neutral');
+
+  document.getElementById('stat-winrate').textContent = `胜率 ${stats.winrate.toFixed(0)}%`;
+  document.getElementById('stat-count').textContent = stats.count;
+  document.getElementById('stat-duration').textContent = stats.duration.toFixed(1) + 'h';
+
+  const hourlyEl = document.getElementById('stat-hourly');
+  hourlyEl.textContent = (stats.hourly >= 0 ? '+¥' : '-¥') + Math.abs(stats.hourly).toFixed(2);
+  hourlyEl.className = 'value ' + (stats.hourly > 0 ? 'profit' : stats.hourly < 0 ? 'loss' : 'neutral');
+
+  // 图表
+  renderChart(records);
+
+  // 最近记录
+  const recent = [...records].sort((a, b) => new Date(b.datetime) - new Date(a.datetime)).slice(0, 10);
+  const listEl = document.getElementById('recent-list');
+  if (!recent.length) {
+    const hint = currentPlayer ? `"${currentPlayer}" 暂无记录` : '暂无记录，点击右上角添加第一条牌局';
+    listEl.innerHTML = `<div class="empty-hint">${hint}</div>`;
+    return;
+  }
+  listEl.innerHTML = recent.map(r => recordItemHTML(r)).join('');
+}
+
+function renderChart(records) {
+  const sorted = [...records].sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+  const ctx = document.getElementById('profit-chart').getContext('2d');
+
+  let cumulative = 0;
+  const labels = [], data = [];
+  sorted.forEach(r => {
+    cumulative += r.amount;
+    labels.push(fmtDate(r.datetime));
+    data.push(+cumulative.toFixed(2));
+  });
+
+  if (profitChart) profitChart.destroy();
+
+  if (!data.length) {
+    profitChart = null;
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    ctx.fillStyle = '#555';
+    ctx.font = '13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('暂无数据', ctx.canvas.width / 2, ctx.canvas.height / 2);
+    return;
+  }
+
+  const isPositive = (data[data.length - 1] || 0) >= 0;
+  const lineColor = isPositive ? '#10b981' : '#ef4444';
+
+  profitChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        borderColor: lineColor,
+        backgroundColor: lineColor + '22',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.3,
+        pointRadius: data.length > 30 ? 0 : 3,
+        pointBackgroundColor: lineColor,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: {
+        callbacks: { label: ctx => '¥' + ctx.parsed.y.toLocaleString() }
+      }},
+      scales: {
+        x: { ticks: { color: '#9ca3af', maxTicksLimit: 6, font: { size: 10 } }, grid: { color: '#2a2a2a' } },
+        y: { ticks: { color: '#9ca3af', font: { size: 10 }, callback: v => '¥' + v }, grid: { color: '#2a2a2a' } }
+      }
+    }
+  });
+}
+
+function recordItemHTML(r, showNote = false) {
+  const tags = (r.tags || []).map(t => `<span class="tag-chip">${t}</span>`).join('');
+  const noteHTML = showNote && r.note ? `<div class="record-note">${r.note}</div>` : '';
+  const playerHTML = r.playerName
+    ? `<span class="record-player">${r.playerName}</span>`
+    : '';
+  return `
+    <div class="record-item" onclick='openSheet(${JSON.stringify(r.id)})'>
+      <div class="record-left">
+        <div class="record-top">
+          <span class="record-date">${fmtDateFull(r.datetime)}</span>
+          ${playerHTML}
+          ${r.blinds ? `<span class="record-blinds">${r.blinds}</span>` : ''}
+        </div>
+        <div class="record-tags">${tags}</div>
+        ${noteHTML}
+      </div>
+      <div class="record-right">
+        <div class="record-amount ${fmtAmountClass(r.amount)}">${fmtAmount(r.amount)}</div>
+        <div class="record-duration">${r.duration}h</div>
+      </div>
+    </div>`;
+}
+
+// ============================================================
+// 添加/编辑记录抽屉
+// ============================================================
+let editingId = null;
+let selectedTags = [];
+let selectedBlind = '';
+
+function openSheet(recordId) {
+  editingId = recordId || null;
+  selectedTags = [];
+  selectedBlind = '';
+
+  const sheet = document.getElementById('record-sheet');
+  const backdrop = document.getElementById('sheet-backdrop');
+
+  // 重置表单
+  document.getElementById('f-amount').value = '';
+  document.getElementById('f-duration').value = '';
+  document.getElementById('f-blinds-input').value = '';
+  document.getElementById('f-note').value = '';
+  // 新增时预填当前选中的玩家名
+  document.getElementById('f-player-name').value = (!editingId && currentPlayer) ? currentPlayer : '';
+  document.getElementById('f-datetime').value = localNow();
+  document.getElementById('delete-btn').style.display = 'none';
+  document.getElementById('sheet-title').textContent = '添加记录';
+
+  // 如果是编辑模式
+  if (editingId) {
+    const rec = DB.getRecords().find(r => r.id === editingId);
+    if (rec) {
+      document.getElementById('f-amount').value = rec.amount;
+      document.getElementById('f-duration').value = rec.duration;
+      document.getElementById('f-blinds-input').value = rec.blinds || '';
+      document.getElementById('f-note').value = rec.note || '';
+      document.getElementById('f-player-name').value = rec.playerName || '';
+      selectedTags = [...(rec.tags || [])];
+      selectedBlind = rec.blinds || '';
+
+      // 日期转 local
+      const d = new Date(rec.datetime);
+      const pad = n => String(n).padStart(2, '0');
+      document.getElementById('f-datetime').value =
+        `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+      document.getElementById('delete-btn').style.display = '';
+      document.getElementById('sheet-title').textContent = '编辑记录';
+    }
+  }
+
+  renderBlindsPresets();
+  renderFormTags();
+
+  backdrop.classList.add('open');
+  sheet.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeSheet() {
+  document.getElementById('sheet-backdrop').classList.remove('open');
+  document.getElementById('record-sheet').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function renderBlindsPresets() {
+  const container = document.getElementById('blinds-presets');
+  container.innerHTML = DB.BLINDS_PRESETS.map(b =>
+    `<span class="blind-chip ${selectedBlind === b ? 'selected' : ''}" onclick="selectBlind('${b}')">${b}</span>`
+  ).join('');
+}
+
+function selectBlind(b) {
+  selectedBlind = selectedBlind === b ? '' : b;
+  document.getElementById('f-blinds-input').value = selectedBlind;
+  renderBlindsPresets();
+}
+
+function renderFormTags() {
+  const container = document.getElementById('form-tags');
+  const tags = DB.getTags();
+  container.innerHTML = tags.map(t =>
+    `<span class="tag-option ${selectedTags.includes(t) ? 'selected' : ''}" onclick="toggleTag('${t}')">${t}</span>`
+  ).join('') + `<span class="tag-option add-tag" onclick="addNewTag()">＋ 新增</span>`;
+}
+
+function toggleTag(t) {
+  if (selectedTags.includes(t)) {
+    selectedTags = selectedTags.filter(x => x !== t);
+  } else {
+    selectedTags.push(t);
+  }
+  renderFormTags();
+}
+
+function addNewTag() {
+  const name = prompt('输入新标签名称（最多8字）');
+  if (!name) return;
+  const tag = name.trim().slice(0, 8);
+  if (!tag) return;
+  DB.addTag(tag);
+  if (!selectedTags.includes(tag)) selectedTags.push(tag);
+  renderFormTags();
+  // 同步筛选页标签
+  renderFilterTags();
+}
+
+function toggleNeg() {
+  const el = document.getElementById('f-amount');
+  const v = parseFloat(el.value) || 0;
+  el.value = (-v).toString();
+}
+
+function saveRecord() {
+  const amountStr = document.getElementById('f-amount').value;
+  const durationStr = document.getElementById('f-duration').value;
+  const datetime = document.getElementById('f-datetime').value;
+  const blinds = document.getElementById('f-blinds-input').value.trim() || selectedBlind;
+  const note = document.getElementById('f-note').value.trim();
+  const playerName = document.getElementById('f-player-name').value.trim();
+
+  // 验证
+  if (!playerName) {
+    showToast('请填写玩家名'); return;
+  }
+  if (amountStr === '' || isNaN(parseFloat(amountStr))) {
+    showToast('请输入有效的盈亏金额'); return;
+  }
+  const duration = parseFloat(durationStr);
+  if (!durationStr || isNaN(duration) || duration <= 0) {
+    showToast('游戏时长必须大于 0'); return;
+  }
+  if (!datetime) {
+    showToast('请选择日期时间'); return;
+  }
+
+  const rec = {
+    id: editingId || genId(),
+    amount: parseFloat(parseFloat(amountStr).toFixed(2)),
+    duration: parseFloat(duration.toFixed(1)),
+    blinds,
+    tags: [...selectedTags],
+    note,
+    playerName,
+    datetime: new Date(datetime).toISOString(),
+  };
+
+  if (editingId) {
+    DB.updateRecord(rec);
+    showToast('记录已更新');
+  } else {
+    DB.addRecord(rec);
+    showToast('记录已保存');
+  }
+
+  closeSheet();
+  renderHome();
+  if (currentPage === 'query') renderQueryPage();
+}
+
+function deleteRecord() {
+  if (!editingId) return;
+  showModal('删除记录', '确定要删除这条记录吗？此操作不可撤销。', [
+    { label: '取消', cls: 'btn-outline', action: closeModal },
+    { label: '删除', cls: 'btn-danger', style: 'border:1px solid var(--red);border-radius:var(--radius-btn)', action: () => {
+      DB.deleteRecord(editingId);
+      closeModal(); closeSheet();
+      showToast('已删除');
+      renderHome();
+      if (currentPage === 'query') renderQueryPage();
+    }}
+  ]);
+}
+
+// ============================================================
+// 查询页
+// ============================================================
+let filteredRecords = [];
+
+function renderFilterTags() {
+  const container = document.getElementById('f-tags');
+  if (!container) return;
+  const tags = DB.getTags();
+  const current = Array.from(container.querySelectorAll('.tag-option.selected')).map(el => el.dataset.tag);
+  container.innerHTML = tags.map(t =>
+    `<span class="tag-option ${current.includes(t) ? 'selected' : ''}" data-tag="${t}" onclick="this.classList.toggle('selected')">${t}</span>`
+  ).join('');
+}
+
+function toggleFilter() {
+  const body = document.getElementById('filter-body');
+  const arrow = document.getElementById('filter-arrow');
+  body.classList.toggle('open');
+  arrow.style.transform = body.classList.contains('open') ? 'rotate(180deg)' : '';
+}
+
+function resetFilter() {
+  document.getElementById('f-date-start').value = '';
+  document.getElementById('f-date-end').value = '';
+  document.getElementById('f-amount-min').value = '';
+  document.getElementById('f-amount-max').value = '';
+  document.getElementById('f-blinds').value = '';
+  document.getElementById('f-player').value = '';
+  renderFilterTags();
+  filteredRecords = DB.getRecords();
+  renderQueryList();
+}
+
+function applyFilter() {
+  const records = DB.getRecords();
+  const dateStart = document.getElementById('f-date-start').value;
+  const dateEnd = document.getElementById('f-date-end').value;
+  const amtMin = parseFloat(document.getElementById('f-amount-min').value);
+  const amtMax = parseFloat(document.getElementById('f-amount-max').value);
+  const blindsKw = document.getElementById('f-blinds').value.trim().toLowerCase();
+  const playerKw = document.getElementById('f-player').value.trim().toLowerCase();
+  const selTags = Array.from(document.querySelectorAll('#f-tags .tag-option.selected')).map(el => el.dataset.tag);
+
+  filteredRecords = records.filter(r => {
+    const d = new Date(r.datetime);
+    if (dateStart && d < new Date(dateStart)) return false;
+    if (dateEnd && d > new Date(dateEnd + 'T23:59:59')) return false;
+    if (!isNaN(amtMin) && r.amount < amtMin) return false;
+    if (!isNaN(amtMax) && r.amount > amtMax) return false;
+    if (blindsKw && !(r.blinds || '').toLowerCase().includes(blindsKw)) return false;
+    if (playerKw && !(r.playerName || '').toLowerCase().includes(playerKw)) return false;
+    if (selTags.length && !selTags.some(t => (r.tags || []).includes(t))) return false;
+    return true;
+  });
+
+  renderQueryList();
+}
+
+function renderQueryPage() {
+  filteredRecords = DB.getRecords();
+  renderFilterTags();
+  renderQueryList();
+}
+
+function renderQueryList() {
+  const sorted = [...filteredRecords].sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
+  const el = document.getElementById('query-list');
+  if (!sorted.length) {
+    el.innerHTML = '<div class="empty-hint">没有符合条件的记录</div>';
+    return;
+  }
+  el.innerHTML = sorted.map(r => recordItemHTML(r, true)).join('');
+}
+
+// ============================================================
+// CSV 导出
+// ============================================================
+function exportCSV() {
+  const records = filteredRecords.length ? filteredRecords : DB.getRecords();
+  if (!records.length) { showToast('没有可导出的记录'); return; }
+
+  const rows = [['日期时间','盈亏金额','时长(小时)','盲注级别','标签','备注']];
+  records.sort((a,b) => new Date(a.datetime) - new Date(b.datetime)).forEach(r => {
+    rows.push([
+      new Date(r.datetime).toLocaleString('zh-CN'),
+      r.amount,
+      r.duration,
+      r.blinds || '',
+      (r.tags || []).join('|'),
+      r.note || ''
+    ].map(csvEscape));
+  });
+
+  const csv = '\uFEFF' + rows.map(r => r.join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const now = new Date();
+  const ts = now.toISOString().replace(/[-:T]/g,'').slice(0,14);
+  a.href = url; a.download = `poker_records_${ts}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast(`已导出 ${records.length} 条记录`);
+}
+
+// ============================================================
+// 备份 & 恢复
+// ============================================================
+function exportBackup() {
+  const data = {
+    version: '1.0',
+    exportDate: new Date().toISOString(),
+    records: DB.getRecords(),
+    tags: DB.getCustomTags(),
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const ts = new Date().toISOString().replace(/[-:T]/g,'').slice(0,14);
+  a.href = url; a.download = `poker_backup_${ts}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('备份文件已导出');
+}
+
+function importBackup() {
+  document.getElementById('import-file').click();
+}
+
+function handleImportFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.records || !Array.isArray(data.records)) {
+        showToast('文件格式不正确'); return;
+      }
+      showModal('选择恢复模式',
+        `文件包含 ${data.records.length} 条记录（版本 ${data.version || '?'}）。\n请选择恢复方式：`,
+        [
+          { label: '合并', cls: 'btn-outline', action: () => { doImport(data, 'merge'); closeModal(); } },
+          { label: '覆盖', cls: 'btn-danger', style: 'border:1px solid var(--red);border-radius:var(--radius-btn)', action: () => {
+            showModal('确认覆盖', '覆盖将清空现有所有数据，此操作不可逆！确定继续？', [
+              { label: '取消', cls: 'btn-outline', action: closeModal },
+              { label: '确定覆盖', cls: 'btn-danger', style: 'border:1px solid var(--red);border-radius:var(--radius-btn)', action: () => { doImport(data, 'overwrite'); closeModal(); } }
+            ]);
+          }}
+        ]
+      );
+    } catch {
+      showToast('解析文件失败，请检查文件格式');
+    }
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+function doImport(data, mode) {
+  if (mode === 'overwrite') {
+    DB.saveRecords(data.records);
+    if (data.tags) localStorage.setItem(DB.TAGS_KEY, JSON.stringify(data.tags));
+    showToast(`已覆盖导入 ${data.records.length} 条记录`);
+  } else {
+    const existing = DB.getRecords();
+    const existIds = new Set(existing.map(r => r.id));
+    const newRecs = data.records.filter(r => !existIds.has(r.id));
+    DB.saveRecords([...existing, ...newRecs]);
+    if (data.tags) {
+      const customTags = DB.getCustomTags();
+      const merged = [...new Set([...customTags, ...data.tags])];
+      localStorage.setItem(DB.TAGS_KEY, JSON.stringify(merged));
+    }
+    showToast(`已合并导入 ${newRecs.length} 条新记录`);
+  }
+  renderHome();
+}
+
+// ============================================================
+// 清空数据
+// ============================================================
+function confirmClear() {
+  showModal('清除所有数据',
+    '此操作将永久删除所有记录和自定义标签，无法恢复！\n请先导出备份后再操作。',
+    [
+      { label: '取消', cls: 'btn-outline', action: closeModal },
+      { label: '确认清除', cls: 'btn-danger', style: 'border:1px solid var(--red);border-radius:var(--radius-btn)', action: () => {
+        localStorage.removeItem(DB.RECORDS_KEY);
+        localStorage.removeItem(DB.TAGS_KEY);
+        localStorage.removeItem(TableDB.SESSION_KEY);
+        localStorage.removeItem(TableDB.HISTORY_KEY);
+        currentPlayer = null;
+        _tableView = 'history';
+        _tableHistoryPage = 0;
+        closeModal();
+        showToast('数据已清除');
+        renderHome();
+      }}
+    ]
+  );
+}
+
+// ============================================================
+// 通用模态对话框
+// ============================================================
+let _resolveModal = null;
+
+function showModal(title, msg, buttons) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-msg').textContent = msg;
+  const actionsEl = document.getElementById('modal-actions');
+  actionsEl.innerHTML = '';
+  buttons.forEach(btn => {
+    const b = document.createElement('button');
+    b.textContent = btn.label;
+    b.className = btn.cls || '';
+    if (btn.style) b.style.cssText = btn.style;
+    b.style.minHeight = '44px';
+    b.style.flex = '1';
+    b.onclick = btn.action;
+    actionsEl.appendChild(b);
+  });
+  document.getElementById('modal-backdrop').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal-backdrop').classList.remove('open');
+}
+
+// ============================================================
+// 手势：下拉关闭抽屉（通用）
+// ============================================================
+function attachSwipeClose(sheetId, closeFn) {
+  const sheet = document.getElementById(sheetId);
+  let startY = 0, isDragging = false;
+  sheet.addEventListener('touchstart', e => {
+    if (sheet.scrollTop > 0) return;
+    startY = e.touches[0].clientY;
+    isDragging = true;
+  }, { passive: true });
+  sheet.addEventListener('touchmove', e => {
+    if (!isDragging) return;
+    const dy = e.touches[0].clientY - startY;
+    if (dy > 0) sheet.style.transform = `translateY(${dy}px)`;
+  }, { passive: true });
+  sheet.addEventListener('touchend', e => {
+    if (!isDragging) return;
+    isDragging = false;
+    const dy = e.changedTouches[0].clientY - startY;
+    if (dy > 100) { sheet.style.transform = ''; closeFn(); }
+    else { sheet.style.transform = ''; }
+  });
+}
+
+// ============================================================
+// 初始化
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+  renderHome();
+
+  // 下拉关闭手势绑定
+  attachSwipeClose('record-sheet', closeSheet);
+  attachSwipeClose('player-sheet', closePlayerSheet);
+  attachSwipeClose('chip-sheet', closeChipSheet);
+  attachSwipeClose('new-session-sheet', closeNewSessionSheet);
+
+  // Service Worker 注册
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+});
+</script>
+</body>
+</html>
