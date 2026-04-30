@@ -1,0 +1,10 @@
+[{                                                                                                                     
+    "relation": ["delegate_permission/common.handle_all_urls"],                                                          
+    "target": {                                                                                                          
+      "namespace": "android_app",                                                                                        
+      "package_name": "io.github.kars_wu.twa",                                                                           
+      "sha256_cert_fingerprints": [                                                                                      
+        "64:CC:7A:12:63:51:83:AB:1C:B8:F2:C3:D7:A9:57:9F:92:CB:C3:B6:A5:AD:01:B4:86:85:FF:9D:3C:7A:D6:05"                
+      ]                                                                                                                  
+    }                                                                                                                    
+  }]    
